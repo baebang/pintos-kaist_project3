@@ -199,10 +199,13 @@ vm_do_claim_page (struct page *page) {
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
-
+	uint64_t pte = pml4e_walk(thread_current()->pml4,page->va,0);
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-
-	return swap_in (page, frame->kva);
+	if (install_page(page,frame,is_writable(&pte)) == true){
+        return true;
+    }
+    return false;
+    // return swap_in (page, frame->kva);
 }
 
 /* Initialize new supplemental page table */

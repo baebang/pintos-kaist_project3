@@ -44,6 +44,7 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
+	struct list_elem frame_elem; // frame_table을 위한 list_elem 추가
 
 	/* Your implementation */
 	/* project 3-1 */
