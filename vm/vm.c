@@ -6,8 +6,15 @@
 #include "lib/kernel/hash.h"
 
 #include "threads/thread.h"
+#include "../include/userprog/process.h"
+#include "threads/mmu.h"
+
+unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+bool page_insert(struct hash *h, struct page *p);
 
 struct list frame_table;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -77,7 +84,7 @@ err:
 // 해시 테이블에서 인자로 받은 va가 있는지 찾는 함수, va가 속해있는 페이지가 해시테이블에 있으면 이를 리턴함
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+	// struct page *page = NULL;
 	/* TODO: Fill this function. */
 	struct page *page = (struct page *)malloc(sizeof(struct page));
 	struct hash_elem *e;
@@ -89,7 +96,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	if (e != NULL) {
 		return hash_entry(e, struct page, hash_elem);
 	} else {
-		retrun NULL;
+		return NULL;
 	}
 }
 
@@ -186,7 +193,7 @@ vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
 	struct thread *curr = thread_current();
-	page = spt_find_page(curr->spt, va);
+	page = spt_find_page(&curr->spt, va);
 	
 	return vm_do_claim_page (page);
 }
@@ -199,13 +206,17 @@ vm_do_claim_page (struct page *page) {
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
-	uint64_t pte = pml4e_walk(thread_current()->pml4,page->va,0);
+	// uint64_t pte = pml4e_walk(thread_current()->pml4, page->va,0);
+
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (install_page(page,frame,is_writable(&pte)) == true){
-        return true;
-    }
-    return false;
+	// if (install_page(page,frame,is_writable(&pte)) == true){
+    //     return true;
+    // }
+    // return false;
     // return swap_in (page, frame->kva);
+	pml4_set_page(thread_current()->pml4, page->va, frame->kva, is_writable(thread_current()->pml4));
+
+	return swap_in (page, frame->kva);
 }
 
 /* Initialize new supplemental page table */
