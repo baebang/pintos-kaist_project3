@@ -5,6 +5,9 @@
 #include "vm/inspect.h"
 #include "lib/kernel/hash.h"
 
+#include "threads/thread.h"
+
+struct list frame_table;
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -56,7 +59,15 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		 * TODO: should modify the field after calling the uninit_new. */
 
 		/* TODO: Insert the page into the spt. */
+		//palloc으로 new_page를 할당 받고
+		// sutruct page *new_page = palloc_get_page(PAL_USER);
+		//switch로 anon, file에 따라
+		// switch(type)
+		// uninit_new를 분리해서 호출해줌
+		// case anon_:
+		// uninit_new(new_page, upage, init, aux, anon_initializer);
 	}
+	// return true // 를 해줘야 load_세그먼트가 다시 불러도 넘어감
 err:
 	return false;
 }
@@ -127,6 +138,12 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	frame = palloc_get_page(PAL_USER);
+
+	if (frame == NULL) {
+		PANIC("to do");
+	}
+	frame->page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -151,7 +168,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-
+	// page-fault가
 	return vm_do_claim_page (page);
 }
 
@@ -168,7 +185,9 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-
+	struct thread *curr = thread_current();
+	page = spt_find_page(curr->spt, va);
+	
 	return vm_do_claim_page (page);
 }
 
