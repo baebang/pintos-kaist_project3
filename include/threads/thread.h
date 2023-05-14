@@ -121,6 +121,7 @@ struct thread {
 	int next_fd;
 	struct file **fdt;
 	struct file *running;
+	void * stack_bottom;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

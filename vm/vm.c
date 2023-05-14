@@ -80,9 +80,12 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 			break;
 		case VM_FILE:
 			new_initializer = file_backed_initializer;
+		default:
+			break;
 		}
-		uninit_new(newpage, upage, init, type, aux, new_initializer);
-		
+		uninit_new(newpage, upage, init, type, aux, new_initializer); //uninit으로 만들어줌
+		newpage->writable = writable;
+		return spt_insert_page(spt, newpage);
 		//palloc으로 new_page를 할당 받고
 		// sutruct page *new_page = palloc_get_page(PAL_USER);
 		//switch로 anon, file에 따라
