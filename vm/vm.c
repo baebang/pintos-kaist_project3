@@ -51,6 +51,7 @@ static struct frame *vm_evict_frame (void);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
+// page_fault가 뜨면 해당 페이지의 vm_type을 정해주는 함수
 bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
@@ -66,13 +67,29 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		 * TODO: should modify the field after calling the uninit_new. */
 
 		/* TODO: Insert the page into the spt. */
+		struct page *newpage = (struct page*)malloc(sizeof(struct page));
+
+		// uninit.h
+		typedef bool (*page_initializer)(struct page *, enum vm_type, void *kva);
+		page_initializer new_initializer = NULL;
+
+		switch (VM_TYPE(type))
+		{
+		case VM_ANON:
+			new_initializer = anon_initializer;
+			break;
+		case VM_FILE:
+			new_initializer = file_backed_initializer;
+		}
+		uninit_new(newpage, upage, init, type, aux, new_initializer);
+		
 		//palloc으로 new_page를 할당 받고
 		// sutruct page *new_page = palloc_get_page(PAL_USER);
 		//switch로 anon, file에 따라
 		// switch(type)
 		// uninit_new를 분리해서 호출해줌
 		// case anon_:
-		// uninit_new(new_page, upage, init, aux, anon_initializer);
+		// uninit_new(new_page, upage, init, aux, anon_initializer); // init이 lazy_load_segment의 init임
 	}
 	// return true // 를 해줘야 load_세그먼트가 다시 불러도 넘어감
 err:
@@ -143,11 +160,12 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
+	//struct frame *frame = NULL;
+	struct frame *frame = (struct frame *)malloc(sizeof(struct frame)); //?
 	/* TODO: Fill this function. */
-	frame = palloc_get_page(PAL_USER);
+	frame->kva = palloc_get_page(PAL_USER);
 
-	if (frame == NULL) {
+	if (frame->kva == NULL) {
 		PANIC("to do");
 	}
 	frame->page = NULL;
@@ -175,7 +193,9 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
-	// page-fault가
+	// page-fault가 어떤 타입인지 확인
+	// 1 va에 매핑되지 않은 경우
+	// 2 bogus 인경우
 	return vm_do_claim_page (page);
 }
 
@@ -214,7 +234,7 @@ vm_do_claim_page (struct page *page) {
     // }
     // return false;
     // return swap_in (page, frame->kva);
-	pml4_set_page(thread_current()->pml4, page->va, frame->kva, is_writable(thread_current()->pml4));
+	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
 
 	return swap_in (page, frame->kva);
 }

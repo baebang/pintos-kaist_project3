@@ -760,6 +760,7 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	// 콘텐츠를 메모리에 넣어줌
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
