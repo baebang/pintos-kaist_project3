@@ -2,6 +2,10 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "include/lib/kernel/hash.h"
+#include "lib/kernel/list.h"
+#include "hash.h"
+
 
 enum vm_type {
 	/* page not initialized */
@@ -44,8 +48,9 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
-
+	struct list_elem frame_elem; // frame_table을 위한 list_elem 추가
 	/* Your implementation */
+	struct hash_elem hash_elem;
 
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
@@ -57,12 +62,14 @@ struct page {
 		struct page_cache page_cache;
 #endif
 	};
+	bool writable;
 };
 
 /* The representation of "frame" */
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem frame_elem;
 };
 
 /* The function table for page operations.
@@ -85,6 +92,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash spt_hash;
 };
 
 #include "threads/thread.h"
@@ -108,5 +116,10 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+
+unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+static unsigned less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux);
+bool page_insert(struct hash *h, struct page *p);
+
 
 #endif  /* VM_VM_H */

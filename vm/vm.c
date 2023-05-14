@@ -3,6 +3,18 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "lib/kernel/hash.h"
+
+#include "threads/thread.h"
+#include "../include/userprog/process.h"
+#include "threads/mmu.h"
+
+
+unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
+bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+bool page_insert(struct hash *h, struct page *p);
+
+struct list frame_table;
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -66,6 +78,24 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
 
+		/* 인자로 받은 spt 내에서 va를 키로 전달해서 이를 갖는 page를 리턴한다.)
+	hash_find(): hash_elem을 리턴해준다. 이로부터 우리는 해당 page를 찾을 수 있어.
+	해당 spt의 hash 테이블 구조체를 인자로 넣자. 해당 해시 테이블에서 찾아야 하니까.
+	근데 우리가 받은 건 va 뿐이다. 근데 hash_find()는 hash_elem을 인자로 받아야 하니
+	dummy page 하나를 만들고 그것의 가상주소를 va로 만들어. 그 다음 이 페이지의 hash_elem을 넣는다.
+	*/
+
+	struct page *page = (struct page *)malloc(sizeof(struct page));
+	struct hash_elem *e;
+	
+	page->va = pg_round_down(va); //해당 va가 속해있는 페이지 시작 주소를 갖는 page를 만든다.
+
+	/* e와 같은 해시값을 갖는 page를 spt에서 찾은 다음 해당 hash_elem을 리턴 */
+	e = hash_find(&spt->spt_hash, &page->hash_elem);
+	free(page);
+
+	return e != NULL ? hash_entry(e, struct page, hash_elem): NULL;
+
 	return page;
 }
 
@@ -76,7 +106,7 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 	int succ = false;
 	/* TODO: Fill this function. */
 
-	return succ;
+	return page_insert(&spt->spt_hash, page);
 }
 
 void
@@ -112,6 +142,12 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	frame = palloc_get_page(PAL_USER);
+
+	if (frame->kva == NULL) {
+		PANIC("to do");
+	}
+	frame->page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -151,9 +187,13 @@ vm_dealloc_page (struct page *page) {
 /* Claim the page that allocate on VA. */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
+	struct page *page;
 	/* TODO: Fill this function */
-
+	struct thread* curr = thread_current();
+	page = spt_find_page(&curr->spt,va);
+	if (page == NULL){
+		return false;
+	}
 	return vm_do_claim_page (page);
 }
 
@@ -167,13 +207,16 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-
-	return swap_in (page, frame->kva);
+	if(install_page(page->va, frame->kva, page->writable)) {
+		return swap_in(page, frame->kva);
+	}
+	return false;
 }
 
 /* Initialize new supplemental page table */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	hash_init(&spt->spt_hash, page_hash, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -187,4 +230,28 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+
+
+unsigned 
+page_hash (const struct hash_elem *p_, void *aux UNUSED) {
+	const struct page *p = hash_entry(p_, struct page, hash_elem); // 해당 페이지가 들어있는 해시 테이블 시작 주소를 가져온다. 우리는 hash_elem만 알고 있으니 
+	return hash_bytes(&p->va, sizeof(p->va));
+}
+
+static unsigned 
+less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	const struct page *p_a = hash_entry(a, struct page, hash_elem);
+	const struct page *p_b = hash_entry(b, struct page, hash_elem);
+	return p_a->va < p_b->va;
+}
+
+bool 
+page_insert(struct hash *h, struct page *p) {
+	
+    if(!hash_insert(h, &p->hash_elem))
+		return true;
+	else
+		return false;
+
 }
