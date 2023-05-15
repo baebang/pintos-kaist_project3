@@ -4,6 +4,8 @@
 #include "threads/palloc.h"
 #include "lib/kernel/hash.h"
 
+#include "threads/mmu.h"
+
 enum vm_type {
 	/* page not initialized */
 	VM_UNINIT = 0,
@@ -28,6 +30,8 @@ enum vm_type {
 #include "vm/uninit.h"
 #include "vm/anon.h"
 #include "vm/file.h"
+
+#include "lib/kernel/hash.h"
 #ifdef EFILESYS
 #include "filesys/page_cache.h"
 #endif

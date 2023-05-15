@@ -110,7 +110,7 @@ initd (void *f_name) {
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
 
-	process_init ();
+	// process_init (); //////////////////////////////////////////
 
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");
@@ -754,6 +754,14 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
+// project 3 - anon page
+// aux로 넘겨줄 정보 값을 저장하는 구조체
+struct lazy_load_container {
+    struct file *file;
+    off_t ofs;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+};
 
 // 함수 다시 보기
 static bool
@@ -763,15 +771,18 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: VA is available when calling this function. */
 	// 콘텐츠를 메모리에 넣어줌
 	struct lazy_load_container *container = (struct lazy_load_container *) aux;
-	struct file *file = container->file;
-	off_t ofs = container->ofs;
+
+	
 	uint32_t read_bytes = container->read_bytes;
 	uint32_t zero_bytes = container->zero_bytes;
+	off_t ofs = container->ofs;
+	struct file *file = container->file;
 
 	file_seek (file, ofs);
 
 	/* Get a page of memory. */
-	uint8_t *kpage = palloc_get_page (PAL_USER);
+	//uint8_t *kpage = palloc_get_page (PAL_USER);
+	uint8_t *kpage = page->frame->kva;
 	if (kpage == NULL)
 		return false;
 
@@ -833,6 +844,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		// 추가
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -860,7 +873,5 @@ setup_stack (struct intr_frame *if_) {
     }
 	return success;
 	
-
-	return success;
 }
 #endif /* VM */
