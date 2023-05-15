@@ -110,7 +110,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct hash_elem *e;
 
 	page->va = pg_round_down(va); // 가상 주소를 내려 주소값의 시작 주소를 받음
-	e = hash_find(&spt->spt_hash,&page->hash_elem);
+	e = hash_find(&spt->spt_hash, &page->hash_elem);
 	free(page); //더미 페이지이므로 찾았으면 free해줘야함
 	// return page;
 	if (e != NULL) {
@@ -129,7 +129,14 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 	/* TODO: Fill this function. */
 	
 	//return succ;
-	return page_insert(&spt->spt_hash, page);
+	// return page_insert(&spt->spt_hash, page); // 원래 코드
+	int succ = false;
+
+	struct hash_elem *e = hash_insert(&spt->spt_hash, &page->hash_elem);
+	if (e == NULL) {
+		succ = true;
+	}
+	return succ;
 }
 
 void
@@ -163,13 +170,13 @@ vm_evict_frame (void) {
  * space.*/
 static struct frame *
 vm_get_frame (void) {
-	//struct frame *frame = NULL;
+	// struct frame *frame = NULL;
 	struct frame *frame = (struct frame *)malloc(sizeof(struct frame)); //?
 	/* TODO: Fill this function. */
 	frame->kva = palloc_get_page(PAL_USER);
 
 	if (frame->kva == NULL) {
-		PANIC("to do");
+		PANIC("TODO");
 	}
 	frame->page = NULL;
 
@@ -199,7 +206,14 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	// page-fault가 어떤 타입인지 확인
 	// 1 va에 매핑되지 않은 경우
 	// 2 bogus 인경우
-	return vm_do_claim_page (page);
+	if (not_present) {
+		page = spt_find_page(spt, addr);
+		if (page == NULL) {
+			return false;
+		}
+		return vm_do_claim_page (page);
+	}
+	return false;
 }
 
 /* Free the page.
@@ -217,13 +231,16 @@ vm_claim_page (void *va UNUSED) {
 	/* TODO: Fill this function */
 	struct thread *curr = thread_current();
 	page = spt_find_page(&curr->spt, va);
-	
+	if (page == NULL) {
+		return false;
+	}
 	return vm_do_claim_page (page);
 }
 
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
+	struct thread *curr = thread_current();
 	struct frame *frame = vm_get_frame ();
 
 	/* Set links */
@@ -237,7 +254,7 @@ vm_do_claim_page (struct page *page) {
     // }
     // return false;
     // return swap_in (page, frame->kva);
-	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
+	pml4_set_page(curr->pml4, page->va, frame->kva, page->writable);
 
 	return swap_in (page, frame->kva);
 }
