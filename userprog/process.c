@@ -757,11 +757,45 @@ install_page (void *upage, void *kpage, bool writable) {
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
 
+// project 3 - anon page
+// aux로 넘겨줄 정보 값을 저장하는 구조체
+struct lazy_load_container {
+    struct file *file;
+    off_t ofs;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+};
+
+
 static bool
 lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct lazy_load_container *container = (struct lazy_load_container *) aux;
+
+	
+	uint32_t read_bytes = container->read_bytes;
+	uint32_t zero_bytes = container->zero_bytes;
+	off_t ofs = container->ofs;
+	struct file *file = container->file;
+
+	file_seek (file, ofs);
+
+	/* Get a page of memory. */
+	//uint8_t *kpage = palloc_get_page (PAL_USER);
+	uint8_t *kpage = page->frame->kva;
+	if (kpage == NULL)
+		return false;
+
+	/* Load this page. */
+	if (file_read (file, kpage, read_bytes) != (int) read_bytes) {
+		palloc_free_page (kpage);
+		return false;
+	}
+	memset (kpage + read_bytes, 0, zero_bytes);
+
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -792,8 +826,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+		struct lazy_load_container *aux = NULL;
+		aux = (struct lazy_load_container*)malloc(sizeof(struct lazy_load_container));
+
+		aux->file = file;
+		aux->ofs = ofs;
+		aux->read_bytes = page_read_bytes;
+		aux->zero_bytes = page_zero_bytes;
+
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
@@ -802,6 +843,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		//project3
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -811,12 +854,13 @@ static bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
-
-	/* TODO: Map the stack on stack_bottom and claim the page immediately.
-	 * TODO: If success, set the rsp accordingly.
-	 * TODO: You should mark the page is stack. */
-	/* TODO: Your code goes here */
-
+	if(vm_alloc_page(VM_ANON | VM_MARKER_0, stack_bottom, 1)){
+        success = vm_claim_page(stack_bottom);
+        if(success){
+            if_->rsp = USER_STACK;
+            thread_current()->stack_bottom = stack_bottom;
+        }
+    }
 	return success;
 }
 #endif /* VM */
