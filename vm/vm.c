@@ -12,7 +12,7 @@
 unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool page_insert(struct hash *h, struct page *p);
-
+void hash_elem_destroy(struct hash_elem *e, void *aux);
 struct list frame_table;
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
@@ -269,6 +269,40 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
+	struct hash_iterator i; // 순회 객체
+	
+	hash_first(&i, &src->spt_hash);
+	// src의 spt를 dst로 복사
+	// 가져와야 할 것 : page, type, upage, writable
+	while(hash_next(&i)) {
+		struct page *parent_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+		enum vm_type type = page_get_type(parent_page); // uninit 상태에서 미래 타입을 저장한 type
+		//enum vm_type type = parent_page->uninit.type;
+		void *upage = parent_page->va;
+		bool writable = parent_page->writable;
+		vm_initializer *init = parent_page->uninit.init;
+		void *aux = parent_page->uninit.aux;
+		
+		// 부모가 uninit 상태인 경우
+		// operations->type : 현재 타입
+		if (parent_page->operations->type == VM_UNINIT) {
+			if (!vm_alloc_page_with_initializer(type, upage, writable, init, aux)) {
+				return false;
+			}
+		}
+		else {
+			if (!vm_alloc_page(type, upage, writable)) {
+					return false;
+			}
+			if (!vm_claim_page(upage)) {
+				return false;
+			}
+			struct page * child_page = spt_find_page(dst, upage);
+				// 부모 페이지의 물리 메모리 정보를 자식에게 복사
+			memcpy(child_page->frame->kva, parent_page->frame->kva, PGSIZE);
+			}
+		}
+		return true;
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -276,6 +310,7 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+	hash_clear(&spt->spt_hash, &hash_elem_destroy);
 }
 
 /* Returns a hash value for page p. */
@@ -300,4 +335,10 @@ bool page_insert(struct hash *h, struct page *p) {
 	} else {
 		return false;
 	}
+}
+
+void hash_elem_destroy(struct hash_elem *e, void *aux) {
+	struct page *p = hash_entry(e, struct page, hash_elem);
+	destroy(p);
+	free(p);
 }
