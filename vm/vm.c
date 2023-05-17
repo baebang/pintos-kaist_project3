@@ -188,6 +188,7 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	vm_alloc_page_with_initializer(VM_ANON, pg_round_down(addr), 1, NULL, NULL);
 }
 
 /* Handle the fault on write_protected page */
@@ -206,7 +207,18 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	// page-fault가 어떤 타입인지 확인
 	// 1 va에 매핑되지 않은 경우
 	// 2 bogus 인경우
+	if (addr == NULL || is_kernel_vaddr(addr)) {
+		return false;
+	}
+
 	if (not_present) {
+		struct thread *curr = thread_current();
+		void *user_rsp = user ? f->rsp : curr->user_rsp;
+		// stack growth 해줘야하는 상황
+		if (USER_STACK - 0x100000 >= addr && addr <= USER_STACK && user_rsp - 8 <= addr) {
+			// vm_stack_growth(pg_round_down(addr));
+			vm_stack_growth(addr);
+		}
 		page = spt_find_page(spt, addr);
 		if (page == NULL) {
 			return false;
@@ -265,12 +277,13 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	hash_init(&spt->spt_hash, page_hash, page_less, NULL);
 }
 
+// 부모 스레드의 spt 테이블의 page들을 복제
 /* Copy supplemental page table from src to dst */
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
 	struct hash_iterator i; // 순회 객체
-	
+
 	hash_first(&i, &src->spt_hash);
 	// src의 spt를 dst로 복사
 	// 가져와야 할 것 : page, type, upage, writable
