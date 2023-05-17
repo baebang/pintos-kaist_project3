@@ -215,7 +215,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		struct thread *curr = thread_current();
 		void *user_rsp = user ? f->rsp : curr->user_rsp;
 		// stack growth 해줘야하는 상황
-		if (USER_STACK - 0x100000 >= addr && addr <= USER_STACK && user_rsp - 8 <= addr) {
+		if (USER_STACK - 0x100000 <= addr && addr <= USER_STACK && user_rsp - 8 <= addr) {
 			// vm_stack_growth(pg_round_down(addr));
 			vm_stack_growth(addr);
 		}
