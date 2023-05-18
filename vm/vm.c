@@ -9,6 +9,8 @@
 #include "../include/userprog/process.h"
 #include "threads/mmu.h"
 
+#define USER_STK_LIMIT (1 << 20)
+
 unsigned page_hash (const struct hash_elem *p_, void *aux UNUSED);
 bool page_less (const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 bool page_insert(struct hash *h, struct page *p);
@@ -51,7 +53,7 @@ static struct frame *vm_evict_frame (void);
 /* Create the pending page object with initializer. If you want to create a
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
-// page_fault가 뜨면 해당 페이지의 vm_type을 정해주는 함수
+
 bool
 vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		vm_initializer *init, void *aux) {
@@ -86,13 +88,6 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		uninit_new(newpage, upage, init, type, aux, new_initializer); //uninit으로 만들어줌
 		newpage->writable = writable;
 		return spt_insert_page(spt, newpage);
-		//palloc으로 new_page를 할당 받고
-		// sutruct page *new_page = palloc_get_page(PAL_USER);
-		//switch로 anon, file에 따라
-		// switch(type)
-		// uninit_new를 분리해서 호출해줌
-		// case anon_:
-		// uninit_new(new_page, upage, init, aux, anon_initializer); // init이 lazy_load_segment의 init임
 	}
 	// return true // 를 해줘야 load_세그먼트가 다시 불러도 넘어감
 err:
@@ -188,6 +183,7 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	vm_alloc_page_with_initializer (VM_ANON, pg_round_down(addr), 1, NULL, NULL);
 }
 
 /* Handle the fault on write_protected page */
@@ -196,25 +192,39 @@ vm_handle_wp (struct page *page UNUSED) {
 }
 
 /* Return true on success */
-bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
-	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
+bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
+						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
+{
+	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	struct page *page = NULL;
+	uintptr_t rsp;
 	/* TODO: Validate the fault */
+	/* if문으로 not present인지 확인 -> find page*/
 	/* TODO: Your code goes here */
-	// page-fault가 어떤 타입인지 확인
-	// 1 va에 매핑되지 않은 경우
-	// 2 bogus 인경우
-	if (not_present) { 
-		page = spt_find_page(spt, addr);
-		if (page == NULL) {
-			return false;
+	if (not_present) {
+		rsp = (user == true)? f->rsp : thread_current()->user_rsp;
+		if (USER_STACK - USER_STK_LIMIT <= rsp - 8 && rsp - 8 <= addr && addr <= USER_STACK) {
+			vm_stack_growth(addr);
+			// vm_stack_growth가 필요한 상태임을 인지함
 		}
-		return vm_do_claim_page (page);
+		
+		page = spt_find_page(spt, addr);
+		if (page == NULL)
+			return false;
+
+		if (write == 1 && page->writable == 0)
+			return false;
+
+		return vm_do_claim_page(page);
 	}
+	/*이 함수에서는 Page Fault가 스택을 증가시켜야하는 경우에 해당하는지 아닌지를 확인해야 합니다.
+	스택 증가로 Page Fault 예외를 처리할 수 있는지 확인한 경우, 
+	Page Fault가 발생한 주소로 vm_stack_growth를 호출합니다.*/
+	/* rsp-8 <= addr <= user_stack이면  */
+
 	return false;
 }
+
 
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */

@@ -66,7 +66,9 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
-    switch (f->R.rax) // rax는 system call number이다.
+	thread_current()->user_rsp = f->rsp;
+	uint64_t sys_number = f->R.rax;
+    switch (sys_number) // rax는 system call number이다.
     {
 	case SYS_HALT:
         halt();
