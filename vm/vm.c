@@ -222,6 +222,11 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		if (page == NULL) {
 			return false;
 		}
+		if(write && !page->writable){
+			return false;
+		}
+
+
 		return vm_do_claim_page (page);
 	}
 	return false;

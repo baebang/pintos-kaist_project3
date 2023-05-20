@@ -27,6 +27,12 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	page->operations = &file_ops;
 
 	struct file_page *file_page = &page->file;
+
+	struct lazy_load_container *page_aux =  page->uninit.aux;
+
+	file_page->file = page_aux->file;
+	file_page->offset = page_aux->ofs;
+	file_page->read_byte = page_aux->read_bytes;
 }
 
 /* Swap in the page by read contents from the file. */
@@ -42,9 +48,22 @@ file_backed_swap_out (struct page *page) {
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
+// static void
+// file_backed_destroy (struct page *page) {
+// 	struct file_page *file_page UNUSED = &page->file;
+// }
 static void
 file_backed_destroy (struct page *page) {
-	struct file_page *file_page UNUSED = &page->file;
+    struct supplemental_page_table *spt = &thread_current()->spt;
+    struct file_page *arg = &page->file;
+        if (pml4_is_dirty(thread_current()->pml4, page->va)){
+            /* 어떤 offset부터 썼는지 확인 후 그 offset부터 write */
+            file_write_at(arg->file, page->va, arg->read_byte, arg->offset);
+            /* dirty bit 0으로 set */
+            pml4_set_dirty(thread_current()->pml4, page->va, 0);
+        }
+    pml4_clear_page(thread_current()->pml4, page->va);
+    // struct file_page *file_page UNUSED = &page->file;
 }
 
 /* Do the mmap */

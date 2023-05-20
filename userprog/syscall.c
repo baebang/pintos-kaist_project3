@@ -118,7 +118,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 				close(f->R.rdi);
 				break; 
 		case SYS_MMAP:
-				f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rax, f->R.r10, f->R.r8);
+				f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
 				break;
 		case SYS_MUNMAP:
 				munmap(f->R.rdi);
@@ -212,45 +212,32 @@ int filesize (int fd) {
 }
 
 
-int read(int fd, void *buffer, unsigned size)
-{
+int read (int fd, void *buffer, unsigned size) {
 	check_address(buffer);
-	struct page *page = spt_find_page(&thread_current()->spt, pg_round_down(buffer));
-	if (page != NULL && page->writable == 0)
-		exit(-1);
-	off_t read_byte = 0;
-	uint8_t *read_buffer = (char *)buffer;
+
 	lock_acquire(&filesys_lock);
-	if (fd == 0)
-	{
-		char key;
-		for (read_byte = 0; read_byte < size; read_byte++)
-		{
-			key = input_getc();	  // 키보드에 한 문자 입력받기
-			*read_buffer++ = key; // read_buffer에 받은 문자 저장
-			if (key == '\n')
-			{
-				break;
-			}
-		}
-	}
-	else if (fd == 1)
-	{
+	if(fd == 1){
 		lock_release(&filesys_lock);
 		return -1;
 	}
-	else
-	{
-		struct file *read_file = search_file_to_fdt(fd);
-		if (read_file == NULL)
-		{
-			lock_release(&filesys_lock);
-			return -1;
-		}
-		read_byte = file_read(read_file, buffer, size);
+
+	if(fd == 0){
+		input_getc();
+		lock_release(&filesys_lock);
+		return size;
 	}
-	lock_release(&filesys_lock);
-	return read_byte;
+  	struct file *fileobj= search_file_to_fdt(fd);
+	if(fileobj){
+		struct page *page = spt_find_page(&thread_current()->spt,buffer);
+		if(page != NULL && page->writable == 0){
+			lock_release(&filesys_lock);
+			exit(-1);
+		}
+	}
+		
+	size = file_read(fileobj,buffer,size);
+	lock_release(&filesys_lock);	
+	return size;
 }
 
 int write (int fd, const void *buffer, unsigned size) {
@@ -320,18 +307,18 @@ struct page * check_address(void *addr){
 }
 
 //project 3 add
-void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write){
-	if (buffer <= USER_STACK && buffer >= rsp)
-		return;
+// void check_valid_buffer(void* buffer, unsigned size, void* rsp, bool to_write){
+// 	if (buffer <= USER_STACK && buffer >= rsp)
+// 		return;
 	
-	for(int i=0; i<size; i++){
-        struct page* page = check_address(buffer + i);
-        if(page == NULL)
-            exit(-1);
-        if(to_write == true && page->writable == false)
-            exit(-1);
-    }
-}
+// 	for(int i=0; i<size; i++){
+//         struct page* page = check_address(buffer + i);
+//         if(page == NULL)
+//             exit(-1);
+//         if(to_write == true && page->writable == false)
+//             exit(-1);
+//     }
+// }
 
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 	if (offset % PGSIZE != 0) {
@@ -353,7 +340,6 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 	if (find_file == NULL) {
 		return NULL;
 	}
-
 	return do_mmap(addr, length, writable, find_file, offset);
 }
 
