@@ -45,8 +45,9 @@ struct thread *get_child_process(int pid){
 }
 
 struct file *search_file_to_fdt (int fd){
+	//process_get_file
 	struct thread *curr = thread_current();
-	if (fd < 0 || fd >= FDCOUNT_LIMIT) {
+	if (fd < 2 || fd >= FDCOUNT_LIMIT) {
 		return NULL;
 	}
 	return curr->fdt[fd];
@@ -110,7 +111,7 @@ initd (void *f_name) {
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
 
-	// process_init (); //////////////////////////////////////////
+	// process_init ();
 
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");
@@ -165,8 +166,8 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	// newpage = palloc_get_page (PAL_USER); /////
-	newpage = palloc_get_page(PAL_USER | PAL_ZERO); ///////////////////
+	// newpage = palloc_get_page (PAL_USER);
+	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
 	if(newpage == NULL){
 		return false;
 	}
@@ -756,15 +757,15 @@ install_page (void *upage, void *kpage, bool writable) {
  * upper block. */
 // project 3 - anon page
 // aux로 넘겨줄 정보 값을 저장하는 구조체
-struct lazy_load_container {
-    struct file *file;
-    off_t ofs;
-    uint32_t read_bytes;
-    uint32_t zero_bytes;
-};
+// struct lazy_load_container {
+//     struct file *file;
+//     off_t ofs;
+//     uint32_t read_bytes;
+//     uint32_t zero_bytes;
+// };
 
 // 함수 다시 보기
-static bool
+bool
 lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
@@ -823,7 +824,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		 * and zero the final PAGE_ZERO_BYTES bytes. */
 		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		// 로딩 중인 파일의 정보나 로딩할 페이지의 위치(세그먼트)를
 		// load_segment의 aux값을 저장해뒀다가 lazy_load_segment에 인자로 넘겨줘야함

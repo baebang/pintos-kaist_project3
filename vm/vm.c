@@ -207,10 +207,9 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	// page-fault가 어떤 타입인지 확인
 	// 1 va에 매핑되지 않은 경우
 	// 2 bogus 인경우
-	if (addr == NULL || is_kernel_vaddr(addr)) {
+	if (addr == NULL || is_kernel_vaddr(addr) ) {
 		return false;
 	}
-
 	if (not_present) {
 		struct thread *curr = thread_current();
 		void *user_rsp = user ? f->rsp : curr->user_rsp;
