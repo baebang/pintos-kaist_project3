@@ -8,6 +8,7 @@
 #include "threads/vaddr.h"
 #include <list.h>
 
+
 enum vm_type {
 	/* page not initialized */
 	VM_UNINIT = 0,
@@ -68,6 +69,9 @@ struct page {
 #endif
 	};
 };
+
+struct list frame_table;
+struct lock frame_lock;
 
 /* The representation of "frame" */
 struct frame {
