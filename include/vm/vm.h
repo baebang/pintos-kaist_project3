@@ -2,9 +2,11 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
-#include "lib/kernel/hash.h"
 
+#include <hash.h>
 #include "threads/mmu.h"
+#include "threads/vaddr.h"
+#include <list.h>
 
 enum vm_type {
 	/* page not initialized */
@@ -71,6 +73,7 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem elem; /* P3 추가 */
 };
 
 /* The function table for page operations.
